@@ -1,0 +1,17 @@
+{
+  "name": "projection",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "parcel src/index.html",
+    "build": "rm -rf dist* && parcel build --no-source-maps src/index.html && zip -r dist.zip dist && wc -c *.zip"
+  },
+  "dependencies": {
+    "babylonjs": "^4.0.3"
+  },
+  "devDependencies": {
+    "parcel-bundler": "^1.12.3",
+    "tslint": "^5.19.0",
+    "typescript": "^3.6.2"
+  }
+}
