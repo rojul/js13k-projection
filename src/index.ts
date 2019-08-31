@@ -27,6 +27,8 @@ function createMaterial(hexColor: string) {
 }
 
 const cubeMaterial = createMaterial('#b0bec5')
+const sideMaterial = createMaterial('#88ffff')
+const sideMaterialDark = createMaterial('#009faf')
 
 const edgeLength = 3
 const gap = 0.05
@@ -54,11 +56,32 @@ function shuffle<T>(array: T[]) {
   return array
 }
 
+function project(v3: BABYLON.Vector3, side: number) {
+  return new BABYLON.Vector3(0, v3.y, [v3.z, v3.x, (edgeLength - 1) - v3.z, (edgeLength - 1) - v3.x][side])
+}
+
+const translateCenter = new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2)
+
 const cubesGroup = new BABYLON.TransformNode('cubes')
 cubesState.forEach((cubeState, i) => {
   const cube = BABYLON.Mesh.CreateBox(`${i}`, 1, scene)
-  cube.position = iToVector3(i).add(new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2))
+  cube.position = iToVector3(i).add(translateCenter)
   cube.material = cubeMaterial
   cube.scaling = new BABYLON.Vector3().setAll(cubeState ? 1 - gap : gap)
   cube.parent = cubesGroup
+})
+
+indexedArray(4, side => {
+  const sideGroup = new BABYLON.TransformNode(`side${side}`)
+  sideGroup.rotate(BABYLON.Axis.Y, Math.PI / 2 * side)
+  const projection = cubesState.map((cubeState, i) => cubeState ? project(iToVector3(i), side) : undefined)
+    .filter(v3 => v3) as BABYLON.Vector3[]
+  indexedArray(edgeLength * edgeLength, i => {
+    const plane = BABYLON.Mesh.CreatePlane(`${i}`, 1, scene)
+    plane.position = iToVector3(i).add(translateCenter).add(new BABYLON.Vector3(-1.5))
+    plane.rotate(BABYLON.Axis.Y, Math.PI / -2)
+    plane.material = projection.some(p => iToVector3(i).equals(p)) ? sideMaterialDark : sideMaterial
+    plane.scaling = new BABYLON.Vector3().setAll(1 - gap)
+    plane.parent = sideGroup
+  })
 })
