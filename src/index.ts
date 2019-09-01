@@ -27,6 +27,22 @@ camera.attachControl(canvas, true)
 const light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 1, 0), scene)
 light.intensity = 0.7
 
+function createBlurTexture(inside: string, outside: string) {
+  const size = 64
+  const textureGap = 6
+  const texture = new BABYLON.DynamicTexture(`blur ${inside} ${outside}`, { width: size, height: size }, scene, false)
+  const ctx = texture.getContext()
+  ctx.fillStyle = outside
+  ctx.fillRect(0, 0, size, size)
+  ctx.filter = `blur(${textureGap / 2}px)`
+  ctx.fillStyle = inside
+  ctx.fillRect(textureGap, textureGap, size - textureGap * 2, size - textureGap * 2)
+  texture.update()
+  return texture
+}
+
+const blurTexture = createBlurTexture('#fff', '#666')
+
 function createMaterial(hexColor: string) {
   const material = new BABYLON.StandardMaterial(hexColor, scene)
   material.diffuseColor = BABYLON.Color3.FromHexString(hexColor)
@@ -35,11 +51,18 @@ function createMaterial(hexColor: string) {
 
 const cubeMaterial = createMaterial('#b0bec5')
 const cubeMaterialHover = createMaterial('#ffd54f')
-const sideMaterial = createMaterial('#88ffff')
-const sideMaterialDark = createMaterial('#009faf')
+const sideMaterials = [
+  createMaterial('#88ffff'),
+  createMaterial('#009faf'),
+].map(material => {
+  const materialWithBlur = material.clone(`${material.name} blur`)
+  materialWithBlur.diffuseTexture = blurTexture
+  return [material, materialWithBlur]
+})
 
 const gap = 0.05
-let cubesState = shuffle(indexedArray(edgeLength ** 3, i => i < 4))
+let sideState = shuffle(indexedArray(edgeLength ** 3, i => i < 4))
+let cubesState = sideState.map(() => false)
 
 function indexedArray<T>(length: number, mapfn: (i: number) => T) {
   return Array.from({ length }, (_, i) => mapfn(i))
@@ -90,12 +113,11 @@ indexedArray(edgeLength * edgeLength, i => {
 })
 
 const cubesGroup = new BABYLON.TransformNode('cubes')
-cubesState.forEach((cubeState, i) => {
+cubesState.forEach((_, i) => {
   const cubeGroup = new BABYLON.TransformNode(`${i}`)
   cubeGroup.position = iToVector3(i).add(translateCenter)
   cubeGroup.scaling = new BABYLON.Vector3().setAll(1 - gap)
   cubeGroup.parent = cubesGroup
-  cubeGroup.setEnabled(cubeState)
 
   const boxPlanes: Array<[BABYLON.Vector3, BABYLON.Vector3, number]> = [
     [new BABYLON.Vector3(0, 1, 0), BABYLON.Axis.X, Math.PI / 2],
@@ -133,7 +155,8 @@ function addCubePlaneActions(plane: BABYLON.Mesh, position: BABYLON.Vector3, sid
       if (!isVector3InCube(newPosition)) {
         return
       }
-      cubesGroup.getChildren()[vector3ToI(newPosition)].setEnabled(true)
+      cubesState[vector3ToI(newPosition)] = true
+      updateScene()
     }),
   )
   actionManager.registerAction(
@@ -141,23 +164,53 @@ function addCubePlaneActions(plane: BABYLON.Mesh, position: BABYLON.Vector3, sid
       if (!isVector3InCube(position)) {
         return
       }
-      cubesGroup.getChildren()[vector3ToI(position)].setEnabled(false)
+      cubesState[vector3ToI(position)] = false
+      updateScene()
     }),
   )
   plane.actionManager = actionManager
 }
 
-indexedArray(4, side => {
+const sidePlanes = indexedArray(4, side => {
   const sideGroup = new BABYLON.TransformNode(`side${side}`)
   sideGroup.rotate(BABYLON.Axis.Y, Math.PI / 2 * side)
-  const projection = cubesState.map((cubeState, i) => cubeState ? project(iToVector3(i), side) : undefined)
-    .filter(v3 => v3) as BABYLON.Vector3[]
-  indexedArray(edgeLength * edgeLength, i => {
+  return indexedArray(edgeLength * edgeLength, i => {
     const plane = BABYLON.Mesh.CreatePlane(`${i}`, 1 - gap, scene)
     plane.position = iToVector3(i).add(translateCenter).add(new BABYLON.Vector3(-1.5))
     plane.rotate(BABYLON.Axis.Y, Math.PI / -2)
-    plane.material = projection.some(p => iToVector3(i).equals(p)) ? sideMaterialDark : sideMaterial
     plane.isPickable = false
     plane.parent = sideGroup
+    return plane
   })
 })
+
+updateScene()
+
+function updateScene() {
+  let isSolved = true
+
+  cubesGroup.getChildren().forEach((cubeGroup, i) => {
+    cubeGroup.setEnabled(cubesState[i])
+  })
+
+  sidePlanes.forEach((planes, side) => {
+    const cubesProjection = getProjection(cubesState, side)
+    const sideProjection = getProjection(sideState, side)
+    planes.forEach((plane, i) => {
+      const isCubeProjected = cubesProjection.includes(i)
+      const isSideProjected = sideProjection.includes(i)
+      if (isSolved) {
+        isSolved = isCubeProjected === isSideProjected
+      }
+      plane.material = sideMaterials[isCubeProjected ? 1 : 0][isSideProjected ? 1 : 0]
+    })
+  })
+
+  if (isSolved) {
+    console.log('solved')
+  }
+}
+
+function getProjection(cubes: boolean[], side: number) {
+  return cubes.map((cube, i) => cube ? vector3ToI(project(iToVector3(i), side)) : -1).filter(i => i !== -1)
+}
