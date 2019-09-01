@@ -13,8 +13,15 @@ const scene = new BABYLON.Scene(engine)
 scene.debugLayer.show()
 scene.clearColor = BABYLON.Color4.FromHexString('#90a4aeff')
 
-const camera = new BABYLON.FreeCamera('camera1', new BABYLON.Vector3(0, 5, -10), scene)
-camera.setTarget(BABYLON.Vector3.Zero())
+const edgeLength = 3
+const lowerRadiusLimit = (edgeLength / 2 + 1) * Math.sqrt(3)
+const camera = new BABYLON.ArcRotateCamera(
+  'camera1', Math.PI / -4, Math.PI / 3, lowerRadiusLimit * 3, new BABYLON.Vector3(0, edgeLength / 2, 0), scene,
+)
+camera.panningSensibility = 0
+camera.upperBetaLimit = Math.PI / 2
+camera.lowerRadiusLimit = lowerRadiusLimit
+camera.upperRadiusLimit = lowerRadiusLimit * 5
 camera.attachControl(canvas, true)
 
 const light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 1, 0), scene)
@@ -30,7 +37,6 @@ const cubeMaterial = createMaterial('#b0bec5')
 const sideMaterial = createMaterial('#88ffff')
 const sideMaterialDark = createMaterial('#009faf')
 
-const edgeLength = 3
 const gap = 0.05
 let cubesState = shuffle(indexedArray(edgeLength ** 3, i => i < 4))
 
