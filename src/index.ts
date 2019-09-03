@@ -53,6 +53,7 @@ let sideState = getLevel()
 const cubesState = sideState.map(() => false)
 
 const translateCenter = new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2)
+const cubePlanes = new Map<BABYLON.Mesh, { position: BABYLON.Vector3, side: BABYLON.Vector3 }>()
 
 const cubeBottomGroup = new BABYLON.TransformNode('cubeBottom')
 indexedArray(edgeLength * edgeLength, i => {
@@ -63,7 +64,7 @@ indexedArray(edgeLength * edgeLength, i => {
   plane.rotate(BABYLON.Axis.X, Math.PI / 2)
   plane.material = cubeMaterial
   plane.parent = cubeBottomGroup
-  addCubePlaneActions(plane, position, new BABYLON.Vector3(0, 1, 0))
+  cubePlanes.set(plane, { position, side: new BABYLON.Vector3(0, 1, 0) })
 })
 
 const cubesGroup = new BABYLON.TransformNode('cubes')
@@ -87,42 +88,49 @@ cubesState.forEach((_, i) => {
     plane.rotate(boxPlane[1], boxPlane[2])
     plane.material = cubeMaterial
     plane.parent = cubeGroup
-    addCubePlaneActions(plane, iToVector3(i), boxPlane[0])
+    cubePlanes.set(plane, { position: iToVector3(i), side: boxPlane[0] })
   })
 })
 
-function addCubePlaneActions(plane: BABYLON.Mesh, position: BABYLON.Vector3, side: BABYLON.Vector3) {
-  const actionManager = new BABYLON.ActionManager(scene)
-  actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPointerOverTrigger, () => {
-      plane.material = cubeMaterialHover
-    }),
-  )
-  actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPointerOutTrigger, () => {
-      plane.material = cubeMaterial
-    }),
-  )
-  actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnLeftPickTrigger, () => {
-      const newPosition = position.add(side)
-      if (!isVector3InCube(newPosition)) {
-        return
-      }
-      cubesState[vector3ToI(newPosition)] = true
-      updateScene()
-    }),
-  )
-  actionManager.registerAction(
-    new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnRightPickTrigger, () => {
-      if (!isVector3InCube(position)) {
-        return
-      }
-      cubesState[vector3ToI(position)] = false
-      updateScene()
-    }),
-  )
-  plane.actionManager = actionManager
+scene.onPointerObservable.add(pointerInfo => {
+  if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERMOVE) {
+    handleMove()
+  } else if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERTAP) {
+    handleTap(pointerInfo.event.button !== 2)
+  }
+})
+
+function pickCubePlane() {
+  const pickInfo = scene.pick(scene.pointerX, scene.pointerY)
+  if (!pickInfo || !cubePlanes.has(pickInfo.pickedMesh as BABYLON.Mesh)) {
+    return
+  }
+  return pickInfo.pickedMesh as BABYLON.Mesh
+}
+
+let hoveredPlane: BABYLON.Mesh | undefined
+function handleMove() {
+  if (hoveredPlane) {
+    hoveredPlane.material = cubeMaterial
+  }
+  hoveredPlane = pickCubePlane()
+  if (hoveredPlane) {
+    hoveredPlane.material = cubeMaterialHover
+  }
+}
+
+function handleTap(createCube: boolean) {
+  const pickedPlane = pickCubePlane()
+  if (!pickedPlane) {
+    return
+  }
+  const cubePlaneInfo = cubePlanes.get(pickedPlane)!
+  const position = createCube ? cubePlaneInfo.position.add(cubePlaneInfo.side) : cubePlaneInfo.position
+  if (!isVector3InCube(position)) {
+    return
+  }
+  cubesState[vector3ToI(position)] = createCube
+  updateScene()
 }
 
 const sidePlanes = indexedArray(4, side => {
@@ -159,6 +167,8 @@ function updateScene() {
       plane.material = sideMaterials[isCubeProjected ? 1 : 0][isSideProjected ? 1 : 0]
     })
   })
+
+  handleMove()
 
   if (isSolved) {
     currentLevel++
