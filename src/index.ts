@@ -13,7 +13,7 @@ const scene = new BABYLON.Scene(engine)
 scene.debugLayer.show()
 scene.clearColor = BABYLON.Color4.FromHexString('#90a4aeff')
 
-const edgeLength = 3
+const edgeLength = 5
 const lowerRadiusLimit = (edgeLength / 2 + 1) * Math.sqrt(3)
 const camera = new BABYLON.ArcRotateCamera(
   'camera1', Math.PI / -4, Math.PI / 3, lowerRadiusLimit * 3, new BABYLON.Vector3(0, edgeLength / 2, 0), scene,
@@ -60,8 +60,29 @@ const sideMaterials = [
   return [material, materialWithBlur]
 })
 
+const levels = [
+  '00000000000000000000000000010000000000000000000100001000000000100000000010000100001000010001100001000000000000000000000000000',
+  '00000000000000000000000000010000000000100001000000001000000000010000000110000000010100001000000000100000000000000000000000000',
+]
+
+function getLevel() {
+  return parseLevel(levels[currentLevel]) || shuffle(indexedArray(edgeLength ** 3, i => i < 13))
+}
+
+function parseLevel(str: string | undefined) {
+  if (!str || str.length !== edgeLength ** 3) {
+    return
+  }
+  return str.split('').map(char => char === '1')
+}
+
+function stringifyLevel(array: boolean[]) {
+  return array.map(value => value ? 1 : 0).join('')
+}
+
 const gap = 0.05
-let sideState = shuffle(indexedArray(edgeLength ** 3, i => i < 4))
+let currentLevel = 0
+let sideState = getLevel()
 let cubesState = sideState.map(() => false)
 
 function indexedArray<T>(length: number, mapfn: (i: number) => T) {
@@ -207,7 +228,10 @@ function updateScene() {
   })
 
   if (isSolved) {
-    console.log('solved')
+    currentLevel++
+    sideState = getLevel()
+    cubesState.fill(false)
+    updateScene()
   }
 }
 
