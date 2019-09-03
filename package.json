@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "parcel src/index.html",
-    "build": "rm -rf dist* && parcel build --no-source-maps src/index.html && zip -r dist.zip dist && wc -c *.zip"
+    "dev": "parcel src/index.html"
   },
   "dependencies": {
     "babylonjs": "^4.0.3"
   },
   "devDependencies": {
     "parcel-bundler": "^1.12.3",
+    "rollup": "^1.20.3",
+    "rollup-plugin-replace": "^2.2.0",
+    "rollup-plugin-terser": "^5.1.1",
+    "rollup-plugin-typescript2": "^0.24.0",
     "tslint": "^5.19.0",
     "typescript": "^3.6.2"
   }

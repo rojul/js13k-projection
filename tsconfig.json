@@ -9,6 +9,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "types": [
+      "@types/node",
       "babylonjs"
     ],
     "lib": [

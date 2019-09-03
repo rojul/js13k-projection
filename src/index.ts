@@ -1,31 +1,7 @@
-const canvas = document.getElementById('c') as HTMLCanvasElement
-const engine = new BABYLON.Engine(canvas, true)
-
-engine.runRenderLoop(() => {
-  scene.render()
-})
-
-window.addEventListener('resize', () => {
-  engine.resize()
-})
-
-const scene = new BABYLON.Scene(engine)
-scene.debugLayer.show()
-scene.clearColor = BABYLON.Color4.FromHexString('#90a4aeff')
-
-const edgeLength = 5
-const lowerRadiusLimit = (edgeLength / 2 + 1) * Math.sqrt(3)
-const camera = new BABYLON.ArcRotateCamera(
-  'camera1', Math.PI / -4, Math.PI / 3, lowerRadiusLimit * 3, new BABYLON.Vector3(0, edgeLength / 2, 0), scene,
-)
-camera.panningSensibility = 0
-camera.upperBetaLimit = Math.PI / 2
-camera.lowerRadiusLimit = lowerRadiusLimit
-camera.upperRadiusLimit = lowerRadiusLimit * 5
-camera.attachControl(canvas, true)
-
-const light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 1, 0), scene)
-light.intensity = 0.7
+import { edgeLength } from './constants'
+import { levels } from './levels'
+import { scene } from './scene'
+import { indexedArray, isVector3InCube, iToVector3, project, shuffle, vector3ToI } from './utils'
 
 function createBlurTexture(inside: string, outside: string) {
   const size = 64
@@ -60,11 +36,6 @@ const sideMaterials = [
   return [material, materialWithBlur]
 })
 
-const levels = [
-  '00000000000000000000000000010000000000000000000100001000000000100000000010000100001000010001100001000000000000000000000000000',
-  '00000000000000000000000000010000000000100001000000001000000000010000000110000000010100001000000000100000000000000000000000000',
-]
-
 function getLevel() {
   return parseLevel(levels[currentLevel]) || shuffle(indexedArray(edgeLength ** 3, i => i < 13))
 }
@@ -76,48 +47,10 @@ function parseLevel(str: string | undefined) {
   return str.split('').map(char => char === '1')
 }
 
-function stringifyLevel(array: boolean[]) {
-  return array.map(value => value ? 1 : 0).join('')
-}
-
 const gap = 0.05
 let currentLevel = 0
 let sideState = getLevel()
-let cubesState = sideState.map(() => false)
-
-function indexedArray<T>(length: number, mapfn: (i: number) => T) {
-  return Array.from({ length }, (_, i) => mapfn(i))
-}
-
-function iToVector3(i: number) {
-  return new BABYLON.Vector3(
-    i / (edgeLength * edgeLength) | 0,
-    (i / edgeLength | 0) % edgeLength,
-    i % edgeLength,
-  )
-}
-
-function vector3ToI(v3: BABYLON.Vector3) {
-  return v3.x * edgeLength * edgeLength + v3.y * edgeLength + v3.z
-}
-
-function isVector3InCube(v3: BABYLON.Vector3) {
-  return [v3.x, v3.y, v3.z].every(value => value >= 0 && value < edgeLength)
-}
-
-function shuffle<T>(array: T[]) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.random() * (i + 1) | 0
-    const temp = array[i]
-    array[i] = array[j]
-    array[j] = temp
-  }
-  return array
-}
-
-function project(v3: BABYLON.Vector3, side: number) {
-  return new BABYLON.Vector3(0, v3.y, [v3.z, v3.x, (edgeLength - 1) - v3.z, (edgeLength - 1) - v3.x][side])
-}
+const cubesState = sideState.map(() => false)
 
 const translateCenter = new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2)
 
