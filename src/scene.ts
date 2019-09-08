@@ -4,7 +4,7 @@ const canvas = document.getElementById('c') as HTMLCanvasElement
 const engine = new BABYLON.Engine(canvas, true)
 
 export const scene = new BABYLON.Scene(engine)
-scene.clearColor = BABYLON.Color4.FromHexString('#90a4aeff')
+scene.clearColor = BABYLON.Color4.FromHexString('#201d33ff')
 
 const lowerRadiusLimit = (edgeLength / 2 + 1) * Math.sqrt(3)
 const camera = new BABYLON.ArcRotateCamera(
@@ -16,8 +16,12 @@ camera.lowerRadiusLimit = lowerRadiusLimit
 camera.upperRadiusLimit = lowerRadiusLimit * 5
 camera.attachControl(canvas, true)
 
-const light = new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 1, 0), scene)
-light.intensity = 0.7
+const defaultPipeline = new BABYLON.DefaultRenderingPipeline('default', true, scene, [camera])
+defaultPipeline.imageProcessingEnabled = false
+defaultPipeline.fxaaEnabled = true
+defaultPipeline.bloomEnabled = true
+defaultPipeline.bloomThreshold = 0.25
+defaultPipeline.bloomWeight = 0.7
 
 engine.runRenderLoop(() => {
   scene.render()
