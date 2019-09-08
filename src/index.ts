@@ -1,7 +1,7 @@
 import { edgeLength } from './constants'
 import { levels } from './levels'
 import { scene } from './scene'
-import { indexedArray, isVector3InCube, iToVector3, project, shuffle, vector3ToI } from './utils'
+import { getProjection, indexedArray, isVector3InCube, iToVector3, shuffle, tweenNumber, tweenVector3, vector3ToI } from './utils'
 
 function createBlurTexture(inside: string, outside: string) {
   const size = 64
@@ -68,10 +68,10 @@ indexedArray(edgeLength * edgeLength, i => {
 })
 
 const cubesGroup = new BABYLON.TransformNode('cubes')
-cubesState.forEach((_, i) => {
+const cubeGroups = cubesState.map((_, i) => {
   const cubeGroup = new BABYLON.TransformNode(`${i}`)
   cubeGroup.position = iToVector3(i).add(translateCenter)
-  cubeGroup.scaling = new BABYLON.Vector3().setAll(1 - gap)
+  cubeGroup.scaling.setAll(0)
   cubeGroup.parent = cubesGroup
 
   const boxPlanes: Array<[BABYLON.Vector3, BABYLON.Vector3, number]> = [
@@ -90,12 +90,12 @@ cubesState.forEach((_, i) => {
     plane.parent = cubeGroup
     cubePlanes.set(plane, { position: iToVector3(i), side: boxPlane[0] })
   })
+
+  return cubeGroup
 })
 
 scene.onPointerObservable.add(pointerInfo => {
-  if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERMOVE) {
-    handleMove()
-  } else if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERTAP) {
+  if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERTAP) {
     handleTap(pointerInfo.event.button !== 2)
   }
 })
@@ -108,15 +108,34 @@ function pickCubePlane() {
   return pickInfo.pickedMesh as BABYLON.Mesh
 }
 
-let hoveredPlane: BABYLON.Mesh | undefined
+const highlightPlane = BABYLON.Mesh.CreatePlane('hover', 1, scene)
+highlightPlane.material = cubeMaterialHover
+highlightPlane.position.z = -0.001
+highlightPlane.isPickable = false
+
+const highlightPlaneAnimation = new BABYLON.Animation(
+  '', 'visibility', 30, BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE,
+)
+highlightPlaneAnimation.setKeys([{
+  frame: 0,
+  value: 1,
+}, {
+  frame: 30,
+  value: 0.3,
+}, {
+  frame: 60,
+  value: 1,
+}])
+highlightPlane.animations.push(highlightPlaneAnimation)
+scene.beginAnimation(highlightPlane, 0, 60, true)
+
 function handleMove() {
-  if (hoveredPlane) {
-    hoveredPlane.material = cubeMaterial
+  const hoveredPlane = pickCubePlane()
+  highlightPlane.isVisible = !!hoveredPlane
+  if (!hoveredPlane) {
+    return
   }
-  hoveredPlane = pickCubePlane()
-  if (hoveredPlane) {
-    hoveredPlane.material = cubeMaterialHover
-  }
+  highlightPlane.parent = hoveredPlane
 }
 
 function handleTap(createCube: boolean) {
@@ -129,7 +148,13 @@ function handleTap(createCube: boolean) {
   if (!isVector3InCube(position)) {
     return
   }
-  cubesState[vector3ToI(position)] = createCube
+  const i = vector3ToI(position)
+  if (createCube && !cubesState[i]) {
+    const cube = cubeGroups[i]
+    cube.scaling.setAll(0)
+    cube.position = cubePlaneInfo.position.add(cubePlaneInfo.side.multiplyByFloats(0.5, 0.5, 0.5)).add(translateCenter)
+  }
+  cubesState[i] = createCube
   updateScene()
 }
 
@@ -151,10 +176,6 @@ updateScene()
 function updateScene() {
   let isSolved = true
 
-  cubesGroup.getChildren().forEach((cubeGroup, i) => {
-    cubeGroup.setEnabled(cubesState[i])
-  })
-
   sidePlanes.forEach((planes, side) => {
     const cubesProjection = getProjection(cubesState, side)
     const sideProjection = getProjection(sideState, side)
@@ -168,8 +189,6 @@ function updateScene() {
     })
   })
 
-  handleMove()
-
   if (isSolved) {
     currentLevel++
     sideState = getLevel()
@@ -178,6 +197,14 @@ function updateScene() {
   }
 }
 
-function getProjection(cubes: boolean[], side: number) {
-  return cubes.map((cube, i) => cube ? vector3ToI(project(iToVector3(i), side)) : -1).filter(i => i !== -1)
+scene.beforeRender = () => {
+  cubeGroups.forEach((cubeGroup, i) => {
+    const targetScale = cubesState[i] ? 1 - gap : 0
+    const delta = 0.1 * scene.getAnimationRatio()
+    cubeGroup.scaling.setAll(tweenNumber(cubeGroup.scaling.x, targetScale, delta))
+    tweenVector3(cubeGroup.position, iToVector3(i).add(translateCenter), delta / 2)
+    cubeGroup.setEnabled(!!cubeGroup.scaling.x)
+  })
+
+  handleMove()
 }

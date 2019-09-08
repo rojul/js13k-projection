@@ -33,3 +33,19 @@ export const shuffle = <T>(array: T[]) => {
 export const project = (v3: BABYLON.Vector3, side: number) => {
   return new BABYLON.Vector3(0, v3.y, [v3.z, v3.x, (edgeLength - 1) - v3.z, (edgeLength - 1) - v3.x][side])
 }
+
+export const  getProjection = (cubes: boolean[], side: number) => {
+  return cubes.map((cube, i) => cube ? vector3ToI(project(iToVector3(i), side)) : -1).filter(i => i !== -1)
+}
+
+export const tweenNumber = (value: number, targetValue: number, delta: number) => {
+  return value < targetValue ? Math.min(value + delta, targetValue) : Math.max(value - delta, targetValue)
+}
+
+export const tweenVector3 = (value: BABYLON.Vector3, targetValue: BABYLON.Vector3, delta: number) => {
+  value.set(
+    tweenNumber(value.x, targetValue.x, delta),
+    tweenNumber(value.y, targetValue.y, delta),
+    tweenNumber(value.z, targetValue.z, delta),
+  )
+}
