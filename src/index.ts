@@ -1,4 +1,5 @@
-import { edgeLength } from './constants'
+import { edgeLength, groundEdgeHeight } from './constants'
+import { createInputManager } from './input'
 import { levels } from './levels'
 import { scene } from './scene'
 import { getProjection, indexedArray, isVector3InCube, iToVector3, shuffle, tweenNumber, tweenVector3, vector3ToI } from './utils'
@@ -56,7 +57,7 @@ indexedArray(edgeLength * edgeLength, i => {
   const iV3 = iToVector3(i)
   const position = new BABYLON.Vector3(iV3.y, -1, iV3.z)
   const plane = BABYLON.Mesh.CreatePlane(`${i}`, 1, scene)
-  plane.position = position.add(new BABYLON.Vector3(0, 0.5, 0)).add(translateCenter)
+  plane.position = position.add(new BABYLON.Vector3(0, 0.501, 0)).add(translateCenter)
   plane.rotate(BABYLON.Axis.X, Math.PI / 2)
   plane.material = cubeMaterials[0][0]
   plane.parent = cubeBottomGroup
@@ -91,20 +92,6 @@ const cubeGroups = cubesState.map((_, i) => {
   return cubeGroup
 })
 
-scene.onPointerObservable.add(pointerInfo => {
-  if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERTAP) {
-    handleTap(pointerInfo.event.button !== 2)
-  }
-})
-
-function pickCubePlane() {
-  const pickInfo = scene.pick(scene.pointerX, scene.pointerY)
-  if (!pickInfo || !cubePlanes.has(pickInfo.pickedMesh as BABYLON.Mesh)) {
-    return
-  }
-  return pickInfo.pickedMesh as BABYLON.Mesh
-}
-
 const highlightPlane = BABYLON.Mesh.CreatePlane('hover', 1, scene)
 highlightPlane.material = cubeMaterialHover
 highlightPlane.position.z = -0.001
@@ -126,17 +113,8 @@ highlightPlaneAnimation.setKeys([{
 highlightPlane.animations.push(highlightPlaneAnimation)
 scene.beginAnimation(highlightPlane, 0, 60, true)
 
-function handleMove() {
-  const hoveredPlane = pickCubePlane()
-  highlightPlane.isVisible = !!hoveredPlane
-  if (!hoveredPlane) {
-    return
-  }
-  highlightPlane.parent = hoveredPlane
-}
-
-function handleTap(createCube: boolean) {
-  const pickedPlane = pickCubePlane()
+const handleTap = (createCube: boolean) => {
+  const pickedPlane = getSelectedMesh()
   if (!pickedPlane) {
     return
   }
@@ -154,6 +132,11 @@ function handleTap(createCube: boolean) {
   cubesState[i] = createCube
   updateScene()
 }
+
+const getSelectedMesh = createInputManager(
+  mesh => cubePlanes.has(mesh),
+  handleTap,
+)
 
 const sidePlanes = indexedArray(4, side => {
   const sideGroup = new BABYLON.TransformNode(`side${side}`)
@@ -182,9 +165,8 @@ function createBoxWithSidePlanes(name: string, width: number, height: number) {
   const edgeMaterial = new BABYLON.StandardMaterial(edgeName, scene)
   edgeMaterial.emissiveColor = BABYLON.Color3.FromHexString(colorOutside)
 
-  const edgeHeight = 0.1
-  const edge = createBoxWithSidePlanes(edgeName, edgeLength, edgeHeight)
-  edge.position.y -= edgeHeight / 2
+  const edge = createBoxWithSidePlanes(edgeName, edgeLength, groundEdgeHeight)
+  edge.position.y -= groundEdgeHeight / 2
   edge.material = edgeMaterial
 
   const cubeName = 'groundCube'
@@ -203,7 +185,7 @@ function createBoxWithSidePlanes(name: string, width: number, height: number) {
   cubeMaterial.emissiveColor = BABYLON.Color3.FromHexString(colorInside)
 
   const cube = createBoxWithSidePlanes(cubeName, edgeLength, edgeLength)
-  cube.position.y -= edgeLength / 2 + edgeHeight
+  cube.position.y -= edgeLength / 2 + groundEdgeHeight
   cube.material = cubeMaterial
 }
 
@@ -242,5 +224,10 @@ scene.beforeRender = () => {
     cubeGroup.setEnabled(!!cubeGroup.scaling.x)
   })
 
-  handleMove()
+  const hoveredPlane = getSelectedMesh()
+  highlightPlane.isVisible = !!hoveredPlane
+  if (!hoveredPlane) {
+    return
+  }
+  highlightPlane.parent = hoveredPlane
 }
