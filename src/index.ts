@@ -1,14 +1,14 @@
 import { edgeLength, groundEdgeHeight } from './constants'
 import { createInputManager } from './input'
-import { levels } from './levels'
+import { getLevel } from './levels'
 import { scene } from './scene'
-import { getProjection, indexedArray, isVector3InCube, iToVector3, shuffle, tweenNumber, tweenVector3, vector3ToI } from './utils'
+import { getProjection, indexedArray, isVector3InCube, iToVector3, tweenNumber, tweenVector3, vector3ToI } from './utils'
 
-function createSquareTexture(inside: string, outside: string) {
-  const size = 10
-  const textureGap = 1
+function createSquareTexture(inside: string, outside: string, text?: string) {
+  const size = 256
+  const textureGap = 25
   const texture = new BABYLON.DynamicTexture(
-    `square ${inside} ${outside}`, { width: size, height: size }, scene, false, BABYLON.Texture.NEAREST_SAMPLINGMODE,
+    `square ${inside} ${outside} ${text || ''}`, { width: size, height: size }, scene, false,
   )
   const ctx = texture.getContext()
   ctx.fillStyle = outside
@@ -16,17 +16,34 @@ function createSquareTexture(inside: string, outside: string) {
   ctx.fillStyle = inside
   ctx.clearRect(textureGap, textureGap, size - textureGap * 2, size - textureGap * 2)
   ctx.fillRect(textureGap, textureGap, size - textureGap * 2, size - textureGap * 2)
+
+  if (text) {
+    ctx.fillStyle = outside
+    ctx.font = 'bold 200px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, size / 2, size / 2 + 15)
+  }
+
   texture.update()
   return texture
 }
 
+const createCubeTexture = (inside: string, outside: string, text?: string) => {
+  const material = new BABYLON.StandardMaterial(`cube ${inside} ${outside} ${text || ''}`, scene)
+  material.emissiveTexture = createSquareTexture(inside, outside, text)
+  return material
+}
+
 const colorInside = '#2f2666'
+const colorInsideWithCube = '#5342b3'
 const colorOutside = '#a8a5b6'
-const cubeMaterials = [colorInside, '#5342b3'].map(inside => {
-  return [colorOutside, '#ff7e5e'].map(outside => {
-    const material = new BABYLON.StandardMaterial(`cube ${inside} ${outside}`, scene)
-    material.emissiveTexture = createSquareTexture(inside, outside)
-    return material
+const cubeMaterials = [colorInside, colorInsideWithCube].map(inside => {
+  return createCubeTexture(inside, colorOutside)
+})
+const projectedCubeMaterials = [colorInside, colorInsideWithCube].map(inside => {
+  return indexedArray(edgeLength * 2 + 1, i => {
+    return createCubeTexture(inside, '#ff7e5e', !i ? undefined : `${i - edgeLength}`)
   })
 })
 
@@ -34,20 +51,9 @@ const cubeMaterialHover = new BABYLON.StandardMaterial('cubeHover', scene)
 cubeMaterialHover.emissiveColor = BABYLON.Color3.FromHexString('#ffcf3d')
 cubeMaterialHover.opacityTexture = createSquareTexture('rgba(255,255,255,0.25)', '#fff')
 
-function getLevel() {
-  return parseLevel(levels[currentLevel]) || shuffle(indexedArray(edgeLength ** 3, i => i < 13))
-}
-
-function parseLevel(str: string | undefined) {
-  if (!str || str.length !== edgeLength ** 3) {
-    return
-  }
-  return str.split('').map(char => char === '1')
-}
-
 let currentLevel = 0
-let sideState = getLevel()
-const cubesState = sideState.map(() => false)
+let sideState = getLevel(currentLevel)
+const cubesState = indexedArray(edgeLength ** 3, () => false)
 
 const translateCenter = new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2)
 const cubePlanes = new Map<BABYLON.Mesh, { position: BABYLON.Vector3, side: BABYLON.Vector3 }>()
@@ -59,7 +65,7 @@ indexedArray(edgeLength * edgeLength, i => {
   const plane = BABYLON.Mesh.CreatePlane(`${i}`, 1, scene)
   plane.position = position.add(new BABYLON.Vector3(0, 0.501, 0)).add(translateCenter)
   plane.rotate(BABYLON.Axis.X, Math.PI / 2)
-  plane.material = cubeMaterials[0][0]
+  plane.material = cubeMaterials[0]
   plane.parent = cubeBottomGroup
   cubePlanes.set(plane, { position, side: new BABYLON.Vector3(0, 1, 0) })
 })
@@ -84,7 +90,7 @@ const cubeGroups = cubesState.map((_, i) => {
     const plane = BABYLON.Mesh.CreatePlane(`${planeI}`, 1, scene)
     plane.position = boxPlane[0].scale(0.5)
     plane.rotate(boxPlane[1], boxPlane[2])
-    plane.material = cubeMaterials[1][0]
+    plane.material = cubeMaterials[1]
     plane.parent = cubeGroup
     cubePlanes.set(plane, { position: iToVector3(i), side: boxPlane[0] })
   })
@@ -196,20 +202,27 @@ function updateScene() {
 
   sidePlanes.forEach((planes, side) => {
     const cubesProjection = getProjection(cubesState, side)
-    const sideProjection = getProjection(sideState, side)
+    const projectedSideState = side < 2 ? sideState[side] : indexedArray(edgeLength ** 2, i => {
+      const v3 = iToVector3(i)
+      return sideState[side - 2][vector3ToI(new BABYLON.Vector3(0, v3.y, edgeLength - 1 - v3.z))]
+    })
     planes.forEach((plane, i) => {
-      const isCubeProjected = cubesProjection.includes(i)
-      const isSideProjected = sideProjection.includes(i)
+      const cubesCount = cubesProjection.filter(cubeI => cubeI === i).length
+      const sideValue = projectedSideState[i]
       if (isSolved) {
-        isSolved = isCubeProjected === isSideProjected
+        isSolved =
+          sideValue === -1 ? !cubesCount :
+          sideValue === 0 ? !!cubesCount :
+          sideValue === cubesCount
       }
-      plane.material = cubeMaterials[isCubeProjected ? 1 : 0][isSideProjected ? 1 : 0]
+      plane.material = sideValue === -1 ? cubeMaterials[!!cubesCount ? 1 : 0] :
+        projectedCubeMaterials[!!cubesCount ? 1 : 0][!sideValue ? 0 : sideValue - cubesCount + edgeLength]
     })
   })
 
   if (isSolved) {
     currentLevel++
-    sideState = getLevel()
+    sideState = getLevel(currentLevel)
     cubesState.fill(false)
     updateScene()
   }
