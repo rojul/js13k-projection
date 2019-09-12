@@ -2,7 +2,7 @@ import { edgeLength, groundEdgeHeight } from './constants'
 import { createInputManager } from './input'
 import { getLevel } from './levels'
 import { scene } from './scene'
-import { getProjection, indexedArray, isVector3InCube, iToVector3, tweenNumber, tweenVector3, vector3ToI } from './utils'
+import { getProjection, indexedArray, isVector3InCube, iToVector3, sleep, tweenNumber, tweenVector3, vector3ToI } from './utils'
 
 function createSquareTexture(inside: string, outside: string, text?: string) {
   const size = 256
@@ -56,7 +56,7 @@ let sideState = getLevel(currentLevel)
 const cubesState = indexedArray(edgeLength ** 3, () => false)
 
 const translateCenter = new BABYLON.Vector3(0.5 - edgeLength / 2, 0.5, 0.5 - edgeLength / 2)
-const cubePlanes = new Map<BABYLON.Mesh, { position: BABYLON.Vector3, side: BABYLON.Vector3 }>()
+const cubePlanes = new Map<BABYLON.Mesh | BABYLON.InstancedMesh, { position: BABYLON.Vector3, side: BABYLON.Vector3 }>()
 
 const cubeBottomGroup = new BABYLON.TransformNode('cubeBottom')
 indexedArray(edgeLength * edgeLength, i => {
@@ -80,6 +80,11 @@ const boxPlanes: Array<[BABYLON.Vector3, BABYLON.Vector3, number]> = [
 ]
 
 const cubesGroup = new BABYLON.TransformNode('cubes')
+
+const cubePlane = BABYLON.Mesh.CreatePlane('cubePlane', 1, scene)
+cubePlane.material = cubeMaterials[1]
+cubePlane.setEnabled(false)
+
 const cubeGroups = cubesState.map((_, i) => {
   const cubeGroup = new BABYLON.TransformNode(`${i}`)
   cubeGroup.position = iToVector3(i).add(translateCenter)
@@ -87,10 +92,11 @@ const cubeGroups = cubesState.map((_, i) => {
   cubeGroup.parent = cubesGroup
 
   boxPlanes.forEach((boxPlane, planeI) => {
-    const plane = BABYLON.Mesh.CreatePlane(`${planeI}`, 1, scene)
+    const plane = cubePlane.createInstance(`${planeI}`)
+
     plane.position = boxPlane[0].scale(0.5)
     plane.rotate(boxPlane[1], boxPlane[2])
-    plane.material = cubeMaterials[1]
+
     plane.parent = cubeGroup
     cubePlanes.set(plane, { position: iToVector3(i), side: boxPlane[0] })
   })
@@ -119,9 +125,10 @@ highlightPlaneAnimation.setKeys([{
 highlightPlane.animations.push(highlightPlaneAnimation)
 scene.beginAnimation(highlightPlane, 0, 60, true)
 
+let interactionEnabled = true
 const handleTap = (createCube: boolean) => {
   const pickedPlane = getSelectedMesh()
-  if (!pickedPlane) {
+  if (!pickedPlane || !interactionEnabled) {
     return
   }
   const cubePlaneInfo = cubePlanes.get(pickedPlane)!
@@ -197,7 +204,7 @@ function createBoxWithSidePlanes(name: string, width: number, height: number) {
 
 updateScene()
 
-function updateScene() {
+async function updateScene() {
   let isSolved = true
 
   sidePlanes.forEach((planes, side) => {
@@ -221,6 +228,13 @@ function updateScene() {
   })
 
   if (isSolved) {
+    interactionEnabled = false
+    await sleep(100)
+    cubePlane.material = projectedCubeMaterials[1][0]
+    await sleep(500)
+    cubePlane.material = cubeMaterials[1]
+    interactionEnabled = true
+
     currentLevel++
     sideState = getLevel(currentLevel)
     cubesState.fill(false)

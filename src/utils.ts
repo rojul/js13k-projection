@@ -49,3 +49,5 @@ export const tweenVector3 = (value: BABYLON.Vector3, targetValue: BABYLON.Vector
     tweenNumber(value.z, targetValue.z, delta),
   )
 }
+
+export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
