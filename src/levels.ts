@@ -1,7 +1,7 @@
 import { edgeLength } from './constants'
 import { getProjection, indexedArray, shuffle } from './utils'
 
-const levels = [
+export const levels = [
   '..0....0....0...00....0.._.000....0...00....0..000.',
   '..0...0.0....0....0..111._.00.....0..000..0.....00.',
   '0.0.00.0.0101.40.0..0.0.0_0.0.00.0.0000.00.0..0.0.0',

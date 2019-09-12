@@ -1,5 +1,6 @@
 import { edgeLength, groundEdgeHeight } from './constants'
 import { createInputManager } from './input'
+import { currentLevel, levelSelection, nextLevel } from './level-selection'
 import { getLevel } from './levels'
 import { scene } from './scene'
 import { getProjection, indexedArray, isVector3InCube, iToVector3, sleep, tweenNumber, tweenVector3, vector3ToI } from './utils'
@@ -51,7 +52,6 @@ const cubeMaterialHover = new BABYLON.StandardMaterial('cubeHover', scene)
 cubeMaterialHover.emissiveColor = BABYLON.Color3.FromHexString('#ffcf3d')
 cubeMaterialHover.opacityTexture = createSquareTexture('rgba(255,255,255,0.25)', '#fff')
 
-let currentLevel = 0
 let sideState = getLevel(currentLevel)
 const cubesState = indexedArray(edgeLength ** 3, () => false)
 
@@ -235,11 +235,14 @@ async function updateScene() {
     cubePlane.material = cubeMaterials[1]
     interactionEnabled = true
 
-    currentLevel++
-    sideState = getLevel(currentLevel)
-    cubesState.fill(false)
-    updateScene()
+    nextLevel()
   }
+}
+
+levelSelection.onLevelChange = () => {
+  sideState = getLevel(currentLevel)
+  cubesState.fill(false)
+  updateScene()
 }
 
 scene.beforeRender = () => {

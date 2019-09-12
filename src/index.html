@@ -13,6 +13,7 @@ html, body {
   margin: 0;
   padding: 0;
   background: #201d33;
+  font-family: sans-serif;
 }
 
 #c {
@@ -20,10 +21,43 @@ html, body {
   height: 100%;
   touch-action: none;
 }
+
+#level-selection {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.level {
+  width: 40px;
+  height: 40px;
+  margin: 0 10px 10px 0;
+  color: #fff;
+  background: rgba(32, 29, 51, 0.7);
+  border: 2px solid currentColor;
+  padding: 0;
+  outline: none;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.level-selected {
+  color: #ff7e5e;
+}
+
+.babylonVRicon {
+  background-color: rgba(32, 29, 51, 0.7) !important;
+}
     </style>
   </head>
   <body>
     <canvas id="c"></canvas>
+    <div id="level-selection"></div>
     <script src="index.ts"></script>
   </body>
 </html>
